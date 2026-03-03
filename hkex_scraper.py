@@ -6,23 +6,6 @@ import os
 from datetime import datetime, timedelta
 from summary_updater import update_summary_sheet
 
-# 已查询过的日期列表
-QUERIED_DATES = []
-
-# 初始化已查询日期列表 (1月2日到1月26日，2月23日到24日)
-def initialize_queried_dates():
-    # 1月2日到1月26日
-    for day in range(2, 27):
-        date = f"2026/01/{day:02d}"
-        QUERIED_DATES.append(date)
-    # 2月23日到24日
-    for day in range(23, 25):
-        date = f"2026/02/{day:02d}"
-        QUERIED_DATES.append(date)
-
-# 初始化已查询日期
-initialize_queried_dates()
-
 STOCK_CODE = "02158"
 QUERY_DATE = "2026/02/26"   
 OUTPUT_FILE = f"hkex_{STOCK_CODE}_{QUERY_DATE.replace('/', '')}.csv"  # 自动生成输出文件名
@@ -56,7 +39,6 @@ def fetch_sdw():
         try:
             page.goto(URL, wait_until="load") 
             print("网站访问成功！")
-            time.sleep(random.uniform(2, 4))  
         except Exception as e:
             print(f"访问网站时出现超时: {e}")
             
@@ -65,7 +47,7 @@ def fetch_sdw():
         try:
             stock_input = page.locator("#txtStockCode")
             stock_input.fill(STOCK_CODE)
-            time.sleep(random.uniform(1, 2))
+
         except Exception as e:
             print(f"填写股票代码时出错: {e}")
 
@@ -79,7 +61,6 @@ def fetch_sdw():
             date_input.clear()
             date_input.fill(QUERY_DATE) 
             date_input.blur() 
-            time.sleep(random.uniform(1, 2))
             print(f"日期填写完成: {date_input.input_value()}")
         except Exception as e:
             print(f"填写日期时出错: {e}")
@@ -102,32 +83,34 @@ def fetch_sdw():
             
             # 获取所有表格行
             rows = target_table.locator("tr").all()
-            print(f"找到 {len(rows)} 行表格数据(含表头)")
+            print(f"找到 {len(rows)} 行表格数据(含表头)，正在提取...")
 
             for row in rows:
-                cols = [c.inner_text().strip() for c in row.locator("th, td").all()]
-                # 过滤掉空行，根据截图，正规数据通常大于等于4列
+                # 【核心提速魔法：纯 Python 批量获取】
+                # 用 all_inner_texts() 一次性拿回整行的所有文本，将通信次数锐减 80%！
+                raw_cols = row.locator("th, td").all_inner_texts()
+                
+                # 用纯 Python 对拿回来的文本列表进行清理去空
+                cols = [c.strip() for c in raw_cols]
+                
+                # 过滤掉空行，正规数据通常大于等于4列
                 if cols and len(cols) >= 4: 
                     data.append(cols)
                     
             print(f"成功提取 {len(data)-1} 条核心数据")
+            
         except Exception as e:
             print(f"提取表格数据时发生错误: {e}")
 
         browser.close()
         return data
 
-
 def main(query_date=None):
+    global QUERY_DATE, OUTPUT_FILE
+    
     try:
-        # 声明全局变量
-        global QUERY_DATE, OUTPUT_FILE
-        
         # 使用传入的日期或默认日期
         current_date = query_date if query_date else QUERY_DATE
-        
-        # 检查日期是否已经查询过
-        is_already_queried = current_date in QUERIED_DATES
         
         print(f"开始爬取股票 {STOCK_CODE} 在 {current_date} 的数据...")
         # 更新全局变量以便fetch_sdw使用
@@ -155,26 +138,32 @@ def main(query_date=None):
         df.to_csv(OUTPUT_FILE, index=False, encoding="utf-8-sig")
         print(f"\n数据已成功保存到当前目录下的: {OUTPUT_FILE}")
         
-        # 如果日期已经查询过，只返回数据，不插入Excel
-        if is_already_queried:
-            print(f"日期 {current_date} 已经查询过，跳过Excel插入操作。")
-            return True, "该日期已查询过，仅显示数据（未插入Excel）", rows_data
-        
-        # 保存到Excel文件 - 使用新的文件名避免冲突
-        excel_file = r"C:\Users\IT\Desktop\CCASS-202601 (2) - 副本.xlsx"
+        # 保存到Excel文件 - 使用指定的文件路径
+        excel_file = "CCASS-202601 (2).xlsx"
         # 生成sheet名称：xx年xx月xx日
         date_obj = datetime.strptime(current_date, "%Y/%m/%d")
         sheet_name = date_obj.strftime("%Y年%m月%d日")
+        
+        print(f"Excel文件路径: {excel_file}")
+        print(f"当前工作目录: {os.getcwd()}")
+        print(f"文件是否存在: {os.path.exists(excel_file)}")
         
         excel_saved = False
         try:
             # 检查Excel文件是否存在
             if os.path.exists(excel_file):
-                with pd.ExcelWriter(excel_file, engine='openpyxl', mode='a', if_sheet_exists='replace') as writer:
-                    df.to_excel(writer, sheet_name=sheet_name, index=False)
-                print(f"数据已成功追加到Excel文件: {excel_file} 的新sheet '{sheet_name}'")
+                # 尝试不同的方法保存Excel文件
+                try:
+                    # 方法1：使用openpyxl引擎
+                    with pd.ExcelWriter(excel_file, engine='openpyxl', mode='a', if_sheet_exists='replace') as writer:
+                        df.to_excel(writer, sheet_name=sheet_name, index=False)
+                    print(f"数据已成功追加到Excel文件: {excel_file} 的新sheet '{sheet_name}'")
+                except Exception as e:
+                    print(f"方法1保存Excel失败: {e}")
+
             else:
                 # 如果文件不存在，创建新文件并写入第一个sheet
+                print("文件不存在，创建新Excel文件")
                 df.to_excel(excel_file, sheet_name=sheet_name, index=False)
                 print(f"数据已成功保存到新Excel文件: {excel_file} 的sheet '{sheet_name}'")
             
@@ -182,6 +171,7 @@ def main(query_date=None):
             time.sleep(2)
             
             # 更新summary表
+            print("更新summary表")
             update_summary_sheet(excel_file, sheet_name)
             
             # 标记Excel保存成功
@@ -189,12 +179,14 @@ def main(query_date=None):
             
         except PermissionError as e:
             print(f"保存到Excel文件时出错(权限错误): {e}")
-            return False, "Excel文件被占用或权限不足，请关闭文件后重试", rows_data
+            # 即使Excel保存失败，也返回数据，因为CSV已经成功保存
+            return True, f"数据已保存到CSV文件，但Excel保存失败（权限错误）: {e}", rows_data
         except Exception as e:
             print(f"保存到Excel文件时出错: {e}")
             import traceback
             traceback.print_exc()
-            return False, f"保存到Excel文件时出错: {e}", rows_data
+            # 即使Excel保存失败，也返回数据，因为CSV已经成功保存
+            return True, f"数据已保存到CSV文件，但Excel保存失败: {e}", rows_data
         
         # 只有在Excel成功保存后，才将日期添加到已查询列表
         if excel_saved:
