@@ -195,18 +195,3 @@ def get_real_date_from_sheet_name(sheet_name):
     query_date_str = f"{year}-{month}-{day}"
     
     return get_real_date(query_date_str)
-
-
-if __name__ == "__main__":
-    # 测试不同年份
-    test_dates = [
-        "2021/02/26", "2021/01/20", "2021/03/02",
-        "2022/02/26", "2022/01/20", "2022/03/02",
-        "2023/02/26", "2023/01/20", "2023/03/02",
-        "2024/02/26", "2024/01/20", "2024/03/02",
-        "2025/02/26", "2025/01/20", "2025/03/02",
-        "2026/02/26", "2026/01/20", "2026/03/02"
-    ]
-    for d in test_dates:
-        real = get_real_date(d)
-        print(f"查询日期: {d} -> 真实日期: {real}")

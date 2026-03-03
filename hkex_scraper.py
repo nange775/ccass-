@@ -190,7 +190,6 @@ def main(query_date=None):
         
         # 只有在Excel成功保存后，才将日期添加到已查询列表
         if excel_saved:
-            QUERIED_DATES.append(current_date)
             print(f"日期 {current_date} 已添加到已查询列表。")
         
         # 返回成功信息和数据
