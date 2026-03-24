@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CCASS 数据终端</title>
+    <title>CCASS 数据批量查询</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/bootstrap.min.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/flatpickr.min.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/material_green.css') }}">
@@ -17,7 +17,7 @@
         }
 
         body {
-            font-family: 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+            font-family: 'Inter', 'PingFang SC', 'Microsoft YaHei', sans-serif;
             background-color: var(--bg-color);
             color: #1e293b;
             padding: 40px 20px;
@@ -44,9 +44,9 @@
             font-weight: 800;
             margin: 0;
             color: #0f172a;
+            text-align: center;
         }
 
-        /* 表单控件 */
         .input-group-custom label {
             display: block;
             font-size: 0.85rem;
@@ -74,7 +74,6 @@
             background-color: #fff;
         }
 
-        /* 按钮组 */
         .btn-action {
             height: 52px;
             border-radius: 14px;
@@ -83,6 +82,7 @@
             display: inline-flex;
             align-items: center;
             justify-content: center;
+            gap: 10px;
             transition: all 0.2s;
             border: none;
         }
@@ -90,28 +90,6 @@
         .btn-query { background-color: var(--primary-color); color: white; }
         .btn-query:hover { background-color: var(--primary-hover); transform: translateY(-2px); box-shadow: 0 8px 15px rgba(16, 185, 129, 0.2); }
 
-        .btn-quick { background-color: #f1f5f9; color: #475569; }
-        .btn-quick:hover { background-color: #e2e8f0; color: #1e293b; }
-
-        .btn-batch {
-            height: 52px;
-            border-radius: 14px;
-            padding: 0 24px;
-            font-weight: 700;
-            display: inline-flex;
-            align-items: center;
-            border: 2px solid #10b981;
-            color: #10b981;
-            text-decoration: none;
-            transition: all 0.2s;
-        }
-        .btn-batch:hover {
-            background-color: #10b981;
-            color: white;
-            box-shadow: 0 5px 15px rgba(16, 185, 129, 0.2);
-        }
-
-        /* 数据区域 */
         .table-wrapper {
             margin-top: 30px;
             border-radius: 16px;
@@ -138,20 +116,27 @@
 
 <div class="main-card">
     <div class="terminal-header">
-        <h1>CCASS 数据查询系统</h1>
+        <h1>CCASS 数据批量查询</h1>
     </div>
 
     <div class="row g-4">
-        <div class="col-md-6">
+        <div class="col-12">
             <div class="input-group-custom">
                 <label for="stock-code">股票代码</label>
                 <input type="text" id="stock-code" class="form-control-custom" placeholder="输入5位代码，如 02158">
             </div>
         </div>
+
         <div class="col-md-6">
             <div class="input-group-custom">
-                <label for="datepicker">查询日期</label>
-                <input type="text" id="datepicker" class="form-control-custom" placeholder="选择日期...">
+                <label for="start-date">开始日期</label>
+                <input type="text" id="start-date" class="form-control-custom" placeholder="选择起始日期...">
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="input-group-custom">
+                <label for="end-date">结束日期</label>
+                <input type="text" id="end-date" class="form-control-custom" placeholder="选择截止日期...">
             </div>
         </div>
 
@@ -164,19 +149,10 @@
 
         <div class="col-12">
             <div class="d-flex flex-wrap gap-3 justify-content-between align-items-center">
-                <div class="d-flex gap-3">
-                    <button id="submit-date-btn" class="btn-action btn-query">
-                        立即查询
-                    </button>
-                    <button id="yesterday-btn" class="btn-action btn-quick">
-                        昨日数据
-                    </button>
-                </div>
-                <div>
-                    <a href="/batch" class="btn-batch">
-                        批量查询
-                    </a>
-                </div>
+                <button id="submit-batch-btn" class="btn-action btn-query">执行批量任务</button>
+                <a href="/" class="btn btn-outline-secondary rounded-pill px-4 shadow-sm d-flex align-items-center" style="height: 44px; border-width: 2px; font-weight: 600; text-decoration: none;">
+                    返回单日查询
+                </a>
             </div>
         </div>
     </div>
@@ -185,7 +161,7 @@
 
     <div id="loading-spinner" class="loading-box">
         <div class="spinner-grow text-success" role="status" style="width: 1.2rem; height: 1.2rem;"></div>
-        <span class="ms-3 fw-bold text-success">正在调取 HKEX 数据...</span>
+        <span class="ms-3 fw-bold text-success">正在执行批量任务，请勿关闭页面...</span>
     </div>
 
     <div id="alert-container"></div>
@@ -196,7 +172,7 @@
             <tbody id="table-body">
                 <tr>
                     <td colspan="5" class="text-center py-5 text-muted">
-                        等待指令中...
+                        配置完参数后点击“执行批量任务”开始采集
                     </td>
                 </tr>
             </tbody>
@@ -208,7 +184,14 @@
 <script src="{{ url_for('static', filename='js/zh.js') }}"></script>
 
 <script>
-    const fp = flatpickr("#datepicker", {
+    const startFp = flatpickr("#start-date", {
+        locale: "zh",
+        dateFormat: "Y/m/d",
+        defaultDate: new Date().setDate(new Date().getDate() - 7),
+        animate: true
+    });
+    
+    const endFp = flatpickr("#end-date", {
         locale: "zh",
         dateFormat: "Y/m/d",
         defaultDate: "today",
@@ -235,45 +218,30 @@
             </div>`;
     }
 
-    function renderTable(data) {
-        const head = document.getElementById('table-header');
-        const body = document.getElementById('table-body');
-        head.innerHTML = ''; body.innerHTML = '';
-        if (!data || data.length === 0) return;
-
-        const trH = document.createElement('tr');
-        data[0].forEach(text => {
-            const th = document.createElement('th');
-            th.textContent = text;
-            trH.appendChild(th);
-        });
-        head.appendChild(trH);
-
-        data.slice(1).forEach(row => {
-            const tr = document.createElement('tr');
-            row.forEach(cell => {
-                const td = document.createElement('td');
-                td.textContent = cell;
-                tr.appendChild(td);
-            });
-            body.appendChild(tr);
-        });
-    }
-
-    async function startQuery(targetDate) {
+    async function startBatchQuery() {
         if (controller) controller.abort();
         controller = new AbortController();
+        
+        const startDate = document.getElementById('start-date').value;
+        const endDate = document.getElementById('end-date').value;
+        const stockCode = stockInput.value;
+        const filePath = pathInput.value;
+        
+        if (!stockCode.trim()) return showMsg('请输入股票代码', 'warning');
+        if (!startDate || !endDate) return showMsg('请选择完整的日期范围', 'warning');
+        
         loading.style.display = 'block';
-        showMsg(`正在查询 ${targetDate} 数据...`, 'primary');
+        showMsg(`正在采集 ${startDate} 至 ${endDate} 的数据...`, 'primary');
 
         try {
-            const response = await fetch('/api/data', {
+            const response = await fetch('/api/batch', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify({ 
-                    date: targetDate, 
-                    file_path: pathInput.value, 
-                    stock_code: stockInput.value 
+                    start_date: startDate, 
+                    end_date: endDate, 
+                    file_path: filePath, 
+                    stock_code: stockCode 
                 }),
                 signal: controller.signal
             });
@@ -282,28 +250,18 @@
             loading.style.display = 'none';
 
             if (result.success) {
-                renderTable(result.data);
-                showMsg("数据加载成功", 'success');
+                showMsg(`批量采集任务完成！`, 'success');
             } else {
-                showMsg(`查询失败：${result.message}`, 'danger');
+                showMsg(`任务中断：${result.message}`, 'danger');
             }
         } catch (err) {
             loading.style.display = 'none';
-            if (err.name !== 'AbortError') showMsg('网络通讯异常', 'danger');
+            if (err.name !== 'AbortError') showMsg(`系统异常：${err.message}`, 'danger');
         }
     }
 
-    document.getElementById('submit-date-btn').onclick = () => {
-        if (stockInput.value.trim() === '') return showMsg('请输入股票代码', 'warning');
-        startQuery(document.getElementById('datepicker').value);
-    };
-
-    document.getElementById('yesterday-btn').onclick = () => {
-        const d = new Date();
-        d.setDate(d.getDate() - 1);
-        fp.setDate(d);
-        startQuery(document.getElementById('datepicker').value);
-    };
+    document.getElementById('submit-batch-btn').onclick = startBatchQuery;
 </script>
+
 </body>
 </html>
