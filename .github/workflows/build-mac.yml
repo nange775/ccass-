@@ -1,44 +1,47 @@
-name: Build CCASS Mac (Universal)
+name: Build Intel Mac Version
 
 on:
   push:
     branches: [ "main" ]
-  workflow_dispatch: 
+  pull_request:
+    branches: [ "main" ]
+  workflow_dispatch: # 允许手动触发
 
 jobs:
   build:
-    runs-on: macos-latest
+    # 关键点 1: 必须使用 macos-13，它是 Intel 处理器。
+    # macos-latest/14/15 默认是 Apple Silicon (M1/M2)，会导致架构冲突。
+    runs-on: macos-13
 
     steps:
-    - name: 1. 拉取源码
-      uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-    - name: 2. 配置 Python 环境
-      uses: actions/setup-python@v5
-      with:
-        python-version: '3.10'
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+          # 关键点 2: 强制使用 x64 架构的 Python
+          architecture: 'x64'
 
-    - name: 3. 安装项目依赖
-      run: |
-        python -m pip install --upgrade pip
-        pip install pyinstaller
-        # 自动跳过可能导致 Mac 打包报错的 Windows 专属库
-        if [ -f requirements.txt ]; then 
-          grep -v "pywin32" requirements.txt > req_mac.txt
-          pip install -r req_mac.txt
-        fi
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          # 如果你有 requirements.txt，请取消注释下一行
+          # pip install -r requirements.txt
+          pip install pyinstaller numpy  # 确保安装了 pyinstaller 和你的依赖
 
-    - name: 4. 执行打包 (Intel+Apple双兼容)
-      run: |
-        # 核心：使用 app.py 作为入口，并封装静态资源
-        pyinstaller -F \
-          --target-arch universal2 \
-          --add-data "templates:templates" \
-          --add-data "static:static" \
-          app.py
+      - name: Build with PyInstaller
+        run: |
+          # 关键点 3: 明确指定 target-arch 为 x86_64
+          # 如果你使用 .spec 文件，命令如下：
+          pyinstaller --clean --target-arch x86_64 app.spec
+          
+          # 如果你直接打包 .py 文件，命令如下：
+          # pyinstaller --clean --onefile --windowed --target-arch x86_64 your_script.py
 
-    - name: 5. 上传成品
-      uses: actions/upload-artifact@v4
-      with:
-        name: CCASS-Mac-Universal
-        path: dist/app
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-intel-app
+          path: dist/ # 假设打包结果在 dist 目录下
